@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, Copy } from 'lucide-react';
+import { LogOut, Copy, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { disconnectWallet } from './utils/wallet';
+import 'buffer';
+import process from 'process';
 import { getFirestore, collection, getDocs, query, where, addDoc } from 'firebase/firestore';
+import Moralis from 'moralis';
 
 const SectionButton = ({ title, isActive, onClick }) => (
   <button
@@ -135,6 +138,8 @@ const StudentDashboard = () => {
   const [institutions, setInstitutions] = useState([]);
   const navigate = useNavigate();
   const [walletAddress, setWalletAddress] = useState('');
+  const [nftData, setNftData] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const fetchInstitutions = async () => {
@@ -155,8 +160,11 @@ const StudentDashboard = () => {
 
   useEffect(() => {
     const storedWalletAddress = localStorage.getItem('walletAddress');
+    console.log('Stored wallet address:', storedWalletAddress);
     if (storedWalletAddress) {
       setWalletAddress(storedWalletAddress);
+    } else {
+      console.error('No wallet address found in localStorage');
     }
   }, []);
 
@@ -177,6 +185,163 @@ const StudentDashboard = () => {
       alert('Wallet address copied!');
     } catch (error) {
       console.error('Failed to copy:', error);
+    }
+  };
+
+  const getIPFSUrl = (ipfsUri) => {
+    if (!ipfsUri) {
+      console.log('No IPFS URI provided');
+      return null;
+    }
+    
+    console.log('Original URI:', ipfsUri);
+
+    // If it's already a gateway URL, return as is
+    if (ipfsUri.startsWith('https://')) {
+      return ipfsUri;
+    }
+
+    // Handle ipfs:// protocol
+    if (ipfsUri.startsWith('ipfs://')) {
+      const hash = ipfsUri.replace('ipfs://', '');
+      return `https://ipfs.io/ipfs/${hash}`;
+    }
+
+    // If it's just a hash, add the gateway
+    if (ipfsUri.startsWith('Qm') || ipfsUri.startsWith('bafk')) {
+      return `https://ipfs.io/ipfs/${ipfsUri}`;
+    }
+
+    // Default case: assume it's a hash
+    return `https://ipfs.io/ipfs/${ipfsUri}`;
+  };
+
+  const fetchReceivedNFTs = async () => {
+    setIsLoading(true);
+    try {
+      await Moralis.start({
+        apiKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6Ijc5NWM3OWJhLWEyODgtNDZhYi1iNzdiLTJjMjE3MDdkYmEzNCIsIm9yZ0lkIjoiNDE0NzcwIiwidXNlcklkIjoiNDI2MjU1IiwidHlwZUlkIjoiYWRlZjliZmItM2M4Yy00YzA3LWJmM2YtYzE5YTUwN2JmMWM3IiwidHlwZSI6IlBST0pFQ1QiLCJpYXQiOjE3MzA2Mjc5NjAsImV4cCI6NDg4NjM4Nzk2MH0.VJ87rLcvA4IdbPV_f3sz_lbaT4hSRZ3uvQuAnNy-inc"
+      });
+
+      const response = await Moralis.EvmApi.nft.getWalletNFTs({
+        chain: "0xaa36a7",
+        format: "hex",
+        mediaItems: true,
+        address: walletAddress
+      });
+
+      // Parse the metadata for each NFT
+      const processedNFTs = response.result.map(nft => {
+        try {
+          // If metadata is a string, try to parse it
+          const metadata = typeof nft.metadata === 'string' 
+            ? JSON.parse(nft.metadata) 
+            : nft.metadata;
+
+          return {
+            ...nft,
+            metadata: {
+              studentName: metadata?.studentName || metadata?.name || 'N/A',
+              registrationNumber: metadata?.registrationNumber || 'N/A',
+              institutionName: metadata?.institutionName || 'N/A',
+              institutionId: metadata?.institutionId || 'N/A',
+              course: metadata?.course || 'N/A',
+              description: metadata?.description || 'N/A',
+              image: metadata?.image || nft.original_media_url
+            }
+          };
+        } catch (error) {
+          console.error('Error parsing metadata for NFT:', error);
+          return {
+            ...nft,
+            metadata: {
+              studentName: 'Error loading metadata',
+              registrationNumber: 'N/A',
+              institutionName: 'N/A',
+              institutionId: 'N/A',
+              course: 'N/A',
+              description: 'N/A',
+              image: nft.original_media_url
+            }
+          };
+        }
+      });
+
+      setNftData({ result: processedNFTs });
+      console.log('Processed NFTs:', processedNFTs);
+
+    } catch (error) {
+      console.error('Error fetching NFTs:', error);
+      alert('Failed to fetch NFTs');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleMetadataDownload = async (metadata) => {
+    try {
+      if (!metadata) {
+        throw new Error('No metadata available');
+      }
+
+      // Create a formatted metadata object
+      const formattedMetadata = {
+        studentName: metadata.studentName,
+        registrationNumber: metadata.registrationNumber,
+        institutionName: metadata.institutionName,
+        institutionId: metadata.institutionId,
+        course: metadata.course,
+        description: metadata.description
+      };
+
+      // Create and download the JSON file
+      const blob = new Blob([JSON.stringify(formattedMetadata, null, 2)], {
+        type: 'application/json'
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `certificate-metadata-${metadata.studentName || 'unknown'}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+    } catch (error) {
+      console.error('Error downloading metadata:', error);
+      alert('Failed to download metadata: ' + error.message);
+    }
+  };
+
+  // Add this function to handle image download
+  const handleImageDownload = async (imageUrl, studentName) => {
+    try {
+      console.log('Downloading image from:', imageUrl); // Debug log
+
+      // If it's an IPFS URL, ensure we're using the gateway URL
+      const downloadUrl = imageUrl.startsWith('ipfs://')
+        ? `https://ipfs.io/ipfs/${imageUrl.replace('ipfs://', '')}`
+        : imageUrl;
+
+      const response = await fetch(downloadUrl);
+      if (!response.ok) throw new Error('Failed to fetch image');
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      // Use a sanitized student name or timestamp for filename
+      const fileName = studentName
+        ? `certificate-${studentName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.png`
+        : `certificate-${Date.now()}.png`;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading image:', error);
+      alert('Failed to download image: ' + error.message);
     }
   };
 
@@ -223,7 +388,7 @@ const StudentDashboard = () => {
               // Add your new actions here, for example:
               fetchReceivedNFTs();  // Function to fetch NFTs
               // or
-              handleNFTSection();   // Custom handler function
+                // Custom handler function
             }}
           />
         </div>
@@ -249,7 +414,99 @@ const StudentDashboard = () => {
           )}
  
           {activeSection === 'received-nfts' && (
-            <p>Received NFT's will be displayed here.</p>
+            <div className="p-6">
+              {isLoading ? (
+                <div className="text-center py-4">
+                  <p>Loading NFTs...</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {nftData?.result?.map((nft, index) => (
+                    <div key={index} className="flex items-start bg-white p-6 rounded-lg shadow-md gap-6">
+                      {/* Image container with hover effect */}
+                      <div className="relative w-48 h-48 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden group cursor-pointer">
+                        {nft.metadata?.image || nft.original_media_url ? (
+                          <>
+                            <img
+                              src={getIPFSUrl(nft.metadata?.image || nft.original_media_url)}
+                              alt={`Certificate for ${nft.metadata?.studentName || 'Student'}`}
+                              className="w-full h-full object-contain"
+                            />
+                            {/* Clickable overlay with download icon */}
+                            <div 
+                              onClick={() => handleImageDownload(
+                                nft.metadata?.image || nft.original_media_url,
+                                nft.metadata?.studentName
+                              )}
+                              className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 cursor-pointer"
+                            >
+                              <Download className="text-white w-8 h-8" />
+                            </div>
+                          </>
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400">
+                            No Image Available
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Certificate Details - Updated Layout */}
+                      <div className="flex flex-col gap-4 flex-grow">
+                        {nft.metadata && (
+                          <>
+                            <h3 className="text-2xl font-semibold text-blue-600">
+                              {nft.metadata.studentName || 'Student Name'}
+                            </h3>
+                            
+                            <div className="space-y-3">
+                              <div>
+                                <p className="text-gray-600 text-sm">Registration Number</p>
+                                <p className="font-medium">{nft.metadata.registrationNumber || 'N/A'}</p>
+                              </div>
+                              
+                              <div>
+                                <p className="text-gray-600 text-sm">Institution</p>
+                                <p className="font-medium">{nft.metadata.institutionName || 'N/A'}</p>
+                              </div>
+                              
+                              <div>
+                                <p className="text-gray-600 text-sm">Institution ID</p>
+                                <p className="font-medium break-all">{nft.metadata.institutionId || 'N/A'}</p>
+                              </div>
+                              
+                              <div>
+                                <p className="text-gray-600 text-sm">Course</p>
+                                <p className="font-medium">{nft.metadata.course || 'N/A'}</p>
+                              </div>
+
+                              <div>
+                                <p className="text-gray-600 text-sm">Description</p>
+                                <p className="text-sm">{nft.metadata.description || 'N/A'}</p>
+                              </div>
+                            </div>
+
+                            {/* Metadata Download Button */}
+                            <button
+                              onClick={() => handleMetadataDownload(nft.metadata)}
+                              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors mt-2 w-fit"
+                            >
+                              <Download size={16} />
+                              Download Metadata
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  {(!nftData?.result || nftData.result.length === 0) && (
+                    <p className="text-center text-gray-600">
+                      No NFTs found in this wallet.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
