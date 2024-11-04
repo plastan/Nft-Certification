@@ -26,6 +26,8 @@ const LoginPage = () => {
       const { walletAddress } = await connectWallet();
       await addUserToDatabase(walletAddress, userType, name);
       alert('Login successful and user data stored!');
+      // Store wallet address in localStorage
+      localStorage.setItem('walletAddress', walletAddress);
       // Redirect based on user type
       if (userType === 'student') {
         navigate('/student-dashboard');

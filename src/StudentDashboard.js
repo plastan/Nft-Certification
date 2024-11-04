@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut } from 'lucide-react';
+import { LogOut, Copy } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { disconnectWallet } from './utils/wallet';
 import { getFirestore, collection, getDocs, query, where, addDoc } from 'firebase/firestore';
@@ -134,6 +134,7 @@ const StudentDashboard = () => {
   const [showRequestForm, setShowRequestForm] = useState(false);
   const [institutions, setInstitutions] = useState([]);
   const navigate = useNavigate();
+  const [walletAddress, setWalletAddress] = useState('');
 
   useEffect(() => {
     const fetchInstitutions = async () => {
@@ -152,6 +153,13 @@ const StudentDashboard = () => {
     fetchInstitutions();
   }, []);
 
+  useEffect(() => {
+    const storedWalletAddress = localStorage.getItem('walletAddress');
+    if (storedWalletAddress) {
+      setWalletAddress(storedWalletAddress);
+    }
+  }, []);
+
   const handleLogout = async () => {
     try {
       await disconnectWallet();
@@ -163,16 +171,39 @@ const StudentDashboard = () => {
     }
   };
 
+  const handleCopyAddress = async () => {
+    try {
+      await navigator.clipboard.writeText(walletAddress);
+      alert('Wallet address copied!');
+    } catch (error) {
+      console.error('Failed to copy:', error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-blue-50 p-8 font-sans">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-4xl font-bold text-blue-900">Student Dashboard</h1>
-        <button
-          onClick={handleLogout}
-          className="bg-red-500 text-white px-4 py-2 rounded-lg flex items-center"
-        >
-          <LogOut className="mr-2" /> Logout
-        </button>
+        <div className="flex items-center gap-4">
+          <div className="bg-white px-4 py-2 rounded-lg shadow-sm flex items-center gap-2">
+            <span className="text-sm text-gray-600">Wallet:</span>
+            <span className="text-sm font-mono">{walletAddress}</span>
+            <button 
+              onClick={handleCopyAddress}
+              className="text-blue-600 hover:text-blue-800 ml-2"
+              title="Copy wallet address"
+            >
+              <Copy size={16} />
+            </button>
+          </div>
+          
+          <button
+            onClick={handleLogout}
+            className="bg-red-500 text-white px-4 py-2 rounded-lg flex items-center"
+          >
+            <LogOut className="mr-2" /> Logout
+          </button>
+        </div>
       </div>
       <div className="w-32 h-1 bg-blue-600 mb-8"></div>
 
@@ -183,21 +214,23 @@ const StudentDashboard = () => {
             isActive={activeSection === 'request-certificate'}
             onClick={() => setActiveSection('request-certificate')}
           />
-          <SectionButton
-            title="Create ViewNFT"
-            isActive={activeSection === 'create-viewnft'}
-            onClick={() => setActiveSection('create-viewnft')}
-          />
+
           <SectionButton
             title="Received NFT's"
             isActive={activeSection === 'received-nfts'}
-            onClick={() => setActiveSection('received-nfts')}
+            onClick={() => {
+              setActiveSection('received-nfts');
+              // Add your new actions here, for example:
+              fetchReceivedNFTs();  // Function to fetch NFTs
+              // or
+              handleNFTSection();   // Custom handler function
+            }}
           />
         </div>
         <div className="w-2/3 bg-white p-6 rounded-lg shadow-md">
           <h2 className="text-2xl font-bold text-blue-800 mb-4">
             {activeSection === 'request-certificate' && 'Request Certificate'}
-            {activeSection === 'create-viewnft' && 'Create ViewNFT'}
+            
             {activeSection === 'received-nfts' && "Received NFT's"}
           </h2>
           {activeSection === 'request-certificate' && (
@@ -214,9 +247,7 @@ const StudentDashboard = () => {
               )}
             </div>
           )}
-          {activeSection === 'create-viewnft' && (
-            <p>Create ViewNFT functionality will be displayed here.</p>
-          )}
+ 
           {activeSection === 'received-nfts' && (
             <p>Received NFT's will be displayed here.</p>
           )}
