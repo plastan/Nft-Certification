@@ -247,7 +247,13 @@ const StudentDashboard = () => {
               institutionId: metadata?.institutionId || 'N/A',
               course: metadata?.course || 'N/A',
               description: metadata?.description || 'N/A',
-              image: metadata?.image || nft.original_media_url
+              image: metadata?.image || nft.original_media_url,
+              walletAddress: metadata?.walletAddress || 'N/A',
+              createdAt: metadata?.createdAt || 'N/A',
+              status: metadata?.status || 'N/A',
+              institutionWalletAddress: metadata?.institutionWalletAddress || 'N/A',
+              cgpa: metadata?.cgpa || 'N/A',
+              certificateHash: metadata?.certificateHash || 'N/A'
             }
           };
         } catch (error) {
@@ -261,7 +267,15 @@ const StudentDashboard = () => {
               institutionId: 'N/A',
               course: 'N/A',
               description: 'N/A',
-              image: nft.original_media_url
+              image: nft.original_media_url,
+              walletAddress: 'N/A',
+              createdAt: 'N/A',
+              status: 'N/A',
+              institutionWalletAddress: 'N/A',
+              cgpa: 'N/A',
+              certificateHash: 'N/A',
+              additionalField1: 'N/A',
+              additionalField2: 'N/A'
             }
           };
         }
@@ -284,14 +298,26 @@ const StudentDashboard = () => {
         throw new Error('No metadata available');
       }
 
-      // Create a formatted metadata object
+      // Create a formatted metadata object with all relevant details
       const formattedMetadata = {
-        studentName: metadata.studentName,
+        id: metadata.id,
         registrationNumber: metadata.registrationNumber,
-        institutionName: metadata.institutionName,
+        walletAddress: metadata.walletAddress,
+        createdAt: metadata.createdAt,
         institutionId: metadata.institutionId,
+        status: metadata.status,
+        institutionName: metadata.institutionName,
+        studentName: metadata.studentName,
         course: metadata.course,
-        description: metadata.description
+        name: metadata.name,
+        description: metadata.description,
+        image: metadata.image,
+        institutionWalletAddress: metadata.institutionWalletAddress,
+        cgpa: metadata.cgpa,
+        certificateHash: metadata.certificateHash,
+        // Add any additional fields you want to include
+        additionalField1: metadata.additionalField1, // Example field
+        additionalField2: metadata.additionalField2  // Example field
       };
 
       // Create and download the JSON file
