@@ -1,0 +1,16 @@
+{
+  "files": {
+    "main.css": "/Nft-Certification/static/css/main.0c6a846d.css",
+    "main.js": "/Nft-Certification/static/js/main.11c52e42.js",
+    "static/js/256.2b0e089a.chunk.js": "/Nft-Certification/static/js/256.2b0e089a.chunk.js",
+    "static/media/logo.png": "/Nft-Certification/static/media/logo.7c94d562c16af036b457.png",
+    "index.html": "/Nft-Certification/index.html",
+    "main.0c6a846d.css.map": "/Nft-Certification/static/css/main.0c6a846d.css.map",
+    "main.11c52e42.js.map": "/Nft-Certification/static/js/main.11c52e42.js.map",
+    "256.2b0e089a.chunk.js.map": "/Nft-Certification/static/js/256.2b0e089a.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.0c6a846d.css",
+    "static/js/main.11c52e42.js"
+  ]
+}
