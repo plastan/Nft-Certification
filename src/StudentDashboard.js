@@ -225,15 +225,18 @@ const StudentDashboard = () => {
 
       const response = await Moralis.EvmApi.nft.getWalletNFTs({
         chain: "0xaa36a7",
-        format: "hex",
+        format: "decimal",
         mediaItems: true,
         address: walletAddress
       });
 
       // Parse the metadata for each NFT
       const processedNFTs = response.result.map(nft => {
+        console.log('NFT Object:', nft); // Log the NFT object to check its structure
+        console.log('NFT _data:', nft._data); // Log the _data object to check its structure
+        console.log('Token ID:', nft._data.tokenId); // Log the tokenId specifically
+
         try {
-          // If metadata is a string, try to parse it
           const metadata = typeof nft.metadata === 'string' 
             ? JSON.parse(nft.metadata) 
             : nft.metadata;
@@ -253,7 +256,8 @@ const StudentDashboard = () => {
               status: metadata?.status || 'N/A',
               institutionWalletAddress: metadata?.institutionWalletAddress || 'N/A',
               cgpa: metadata?.cgpa || 'N/A',
-              certificateHash: metadata?.certificateHash || 'N/A'
+              certificateHash: metadata?.certificateHash || 'N/A',
+              tokenId: nft._data.tokenId || 'N/A' // Access tokenId directly from _data
             }
           };
         } catch (error) {
@@ -274,8 +278,7 @@ const StudentDashboard = () => {
               institutionWalletAddress: 'N/A',
               cgpa: 'N/A',
               certificateHash: 'N/A',
-              additionalField1: 'N/A',
-              additionalField2: 'N/A'
+              tokenId: 'N/A' // Ensure this is also set correctly
             }
           };
         }
@@ -316,7 +319,7 @@ const StudentDashboard = () => {
         cgpa: metadata.cgpa,
         certificateHash: metadata.certificateHash,
         // Add any additional fields you want to include
-        additionalField1: metadata.additionalField1, // Example field
+        token_id: metadata.token_id, // Example field
         additionalField2: metadata.additionalField2  // Example field
       };
 
@@ -486,6 +489,11 @@ const StudentDashboard = () => {
                             
                             <div className="space-y-3">
                               <div>
+                                <p className="text-gray-600 text-sm">Token ID</p>
+                                <p className="text-sm">{nft._data.tokenId || 'N/A'}</p>
+                              </div>
+
+                              <div>
                                 <p className="text-gray-600 text-sm">Registration Number</p>
                                 <p className="font-medium">{nft.metadata.registrationNumber || 'N/A'}</p>
                               </div>
@@ -509,6 +517,8 @@ const StudentDashboard = () => {
                                 <p className="text-gray-600 text-sm">Description</p>
                                 <p className="text-sm">{nft.metadata.description || 'N/A'}</p>
                               </div>
+
+
                             </div>
 
                             {/* Metadata Download Button */}

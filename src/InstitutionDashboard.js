@@ -265,7 +265,7 @@ const IssueCertificateSection = ({ selectedRequest, onIssueCertificate }) => {
 
   const API_URL = "https://eth-sepolia.g.alchemy.com/v2/qJIWYUslBP-dBenSIE7WEkkSWzCXM1o1";
   const PRIVATE_KEY = "3b5276e9aa5ecc8e43cf3bbb83ed95981dc1ef502786fd098ad56a9910cca60b";
-  const contractAddress = "0x27e58463b927423B62218ca2d4d3D75447090Dc0";
+  const contractAddress = "0x330175D4bCDCEEe90bF72BDA093b084C8dD8257e";
 
   // const contractABI = [
   //   "function mintCertificate(address recipient, string memory ipfsURI, string memory digitalSignature, string memory publicKey) external returns (uint256)",
@@ -320,16 +320,28 @@ const IssueCertificateSection = ({ selectedRequest, onIssueCertificate }) => {
   };
 
   const generateCertificateHash = () => {
+    // Extract required fields from selectedRequest
     const studentInfo = {
-      studentName: selectedRequest.studentName,
-      registrationNumber: selectedRequest.registrationNumber,
-      course: selectedRequest.course,
-      cgpa,
-      semMarks,
+        studentName: selectedRequest.studentName,
+        registrationNumber: selectedRequest.registrationNumber,
+        course: selectedRequest.course,
+        cgpa,
     };
 
+    // Log the input details
+    console.log("Input Details for Hashing:", studentInfo);
+
+    // Create a string representation of the studentInfo object
     const infoString = JSON.stringify(studentInfo);
+    console.log("String Representation for Hashing:", infoString); // Log the string representation
+
+    // Generate the hash
     const hash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(infoString));
+
+    // Log the output hash
+    console.log("Generated Certificate Hash:", hash);
+
+    // Set the generated hash to state
     setCertificateHash(hash);
   };
 
@@ -345,15 +357,14 @@ const IssueCertificateSection = ({ selectedRequest, onIssueCertificate }) => {
 
     const certificateData = {
       ...selectedRequest,
-      name : "Sahrdaya college of engineering and technology academic certificate",
-      description : "This is a certificate for the student Sahrdaya college of engineering and technology",
+      Name_of_Institution : "Sahrdaya college of engineering and technology academic certificate",
+      description : `This is a certificate for the "${selectedRequest.studentName}" Sahrdaya college of engineering and technology`,
       image : imageUri,
       institutionWalletAddress,
       cgpa:{
         cgpa : cgpa,
         semMarks,
       },
-      certificateHash,
     };
 
 
