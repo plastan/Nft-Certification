@@ -22,11 +22,16 @@
     "tailwindcss": "^3.4.12",
     "web-vitals": "^2.1.4"
   },
+  "homepage": "https://Schizok.github.io/Nft-Certification",
   "scripts": {
     "start": "react-app-rewired start",
     "build": "react-app-rewired build",
     "test": "react-app-rewired test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build"
+  
+    
   },
   "eslintConfig": {
     "extends": [
@@ -50,6 +55,7 @@
     "assert": "^2.1.0",
     "buffer": "^6.0.3",
     "crypto-browserify": "^3.12.1",
+    "gh-pages": "^6.2.0",
     "https-browserify": "^1.0.0",
     "os-browserify": "^0.3.0",
     "process": "^0.11.10",

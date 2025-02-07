@@ -3,10 +3,26 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { LogOut, Copy } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { disconnectWallet } from './utils/wallet';
-import { getFirestore, collection, getDocs, deleteDoc, doc, query, where, getDoc, addDoc, arrayUnion } from 'firebase/firestore';
+import { 
+  getFirestore, 
+  collection, 
+  getDocs, 
+  deleteDoc, 
+  doc, 
+  query, 
+  where, 
+  getDoc, 
+  addDoc,
+  updateDoc 
+} from 'firebase/firestore';
 import { PinataSDK } from "pinata-web3";
 import { ethers } from 'ethers';
 import contractABI from './ABI.json';
+
+// Move these constants outside of any component, at the top level after imports
+const API_URL = "https://eth-sepolia.g.alchemy.com/v2/qJIWYUslBP-dBenSIE7WEkkSWzCXM1o1";
+const PRIVATE_KEY = "3b5276e9aa5ecc8e43cf3bbb83ed95981dc1ef502786fd098ad56a9910cca60b";
+const CONTRACT_ADDRESS = "0x330175D4bCDCEEe90bF72BDA093b084C8dD8257e";
 
 const SectionButton = ({ title, isActive, onClick }) => (
   <button
@@ -189,7 +205,7 @@ const InstitutionDashboard = () => {
             />
           )}
           {activeSection === 'manage-certificates' && (
-            <ManageCertificatesSection issuedCertificates={issuedCertificates} />
+            <ManageCertificatesSection />
           )}
           {activeSection === 'requests' && (
             <div>
@@ -263,9 +279,7 @@ const IssueCertificateSection = ({ selectedRequest, onIssueCertificate }) => {
     pinataGateway: "https://gateway.pinata.cloud",
   });
 
-  const API_URL = "https://eth-sepolia.g.alchemy.com/v2/qJIWYUslBP-dBenSIE7WEkkSWzCXM1o1";
-  const PRIVATE_KEY = "3b5276e9aa5ecc8e43cf3bbb83ed95981dc1ef502786fd098ad56a9910cca60b";
-  const contractAddress = "0x330175D4bCDCEEe90bF72BDA093b084C8dD8257e";
+  const contractAddress = CONTRACT_ADDRESS;
 
   // const contractABI = [
   //   "function mintCertificate(address recipient, string memory ipfsURI, string memory digitalSignature, string memory publicKey) external returns (uint256)",
@@ -454,19 +468,26 @@ const IssueCertificateSection = ({ selectedRequest, onIssueCertificate }) => {
       console.log('Transaction hash:', receipt.transactionHash);
       alert(`Certificate issued successfully! Transaction hash: ${receipt.transactionHash}`);
 
-      // Create certificate details object
+      // After successful minting, create certificate details
       const certificateDetails = {
         studentName: selectedRequest.studentName,
         registrationNumber: selectedRequest.registrationNumber,
         course: selectedRequest.course,
         walletAddress: selectedRequest.walletAddress,
         institutionName: selectedRequest.institutionName,
+        institutionWalletAddress: institutionWalletAddress,
         cgpa,
         semMarks,
         transactionHash: receipt.transactionHash,
         ipfsUri: finalIpfsUri,
         issuedAt: new Date().toISOString(),
+        tokenId: receipt.events[0].args.tokenId.toString(), // Get tokenId from event
+        isRevoked: false // Add revocation status
       };
+
+      // Store certificate details in Firestore
+      const db = getFirestore();
+      await addDoc(collection(db, 'certificates'), certificateDetails);
 
       // Call the onIssueCertificate function to update the parent component
       onIssueCertificate(certificateDetails);
@@ -737,24 +758,157 @@ const IssueCertificateSection = ({ selectedRequest, onIssueCertificate }) => {
   );
 };
 
-const ManageCertificatesSection = ({ issuedCertificates }) => {
+const ManageCertificatesSection = () => {
+  const [certificates, setCertificates] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Fetch certificates from Firestore
+  useEffect(() => {
+    const fetchCertificates = async () => {
+      try {
+        const db = getFirestore();
+        const certificatesRef = collection(db, 'certificates');
+        const snapshot = await getDocs(certificatesRef);
+        const certificatesList = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setCertificates(certificatesList);
+      } catch (error) {
+        console.error('Error fetching certificates:', error);
+        setError('Failed to load certificates');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchCertificates();
+  }, []);
+
+  // Handle certificate revocation
+  const handleRevoke = async (certificateId, tokenId) => {
+    try {
+      // First confirm with the user
+      if (!window.confirm('Are you sure you want to revoke this certificate? This action cannot be undone.')) {
+        return;
+      }
+
+      // Check if MetaMask is installed
+      if (typeof window.ethereum === 'undefined') {
+        throw new Error('MetaMask is not installed!');
+      }
+
+      // Request account access if needed
+      await window.ethereum.request({ method: 'eth_requestAccounts' });
+      
+      // Initialize contract with MetaMask provider
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner();
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, signer);
+
+      // Show loading state
+      setIsLoading(true);
+
+      console.log('Revoking certificate with token ID:', tokenId);
+
+      // Call smart contract's revoke function
+      const tx = await contract.revokeCertificate(tokenId);
+      console.log('Revocation transaction sent:', tx.hash);
+
+      // Wait for transaction confirmation
+      const receipt = await tx.wait();
+      console.log('Revocation transaction confirmed:', receipt);
+
+      // Check for the CertificateRevoked event
+      const revokeEvent = receipt.events?.find(e => e.event === 'CertificateRevoked');
+      if (!revokeEvent) {
+        throw new Error('Revocation event not found in transaction receipt');
+      }
+
+      // Update Firestore
+      const db = getFirestore();
+      const certificateRef = doc(db, 'certificates', certificateId);
+      await updateDoc(certificateRef, {
+        isRevoked: true,
+        revokedAt: new Date().toISOString(),
+        revocationTxHash: receipt.transactionHash
+      });
+
+      // Update local state
+      setCertificates(prevCerts =>
+        prevCerts.map(cert =>
+          cert.id === certificateId
+            ? {
+                ...cert,
+                isRevoked: true,
+                revokedAt: new Date().toISOString(),
+                revocationTxHash: receipt.transactionHash
+              }
+            : cert
+        )
+      );
+
+      alert('Certificate has been successfully revoked');
+    } catch (error) {
+      console.error('Error revoking certificate:', error);
+      
+      // Provide more specific error messages
+      if (error.message.includes('Only the minting institution can revoke')) {
+        alert('Error: Only the institution that minted this certificate can revoke it');
+      } else if (error.message.includes('Certificate is already revoked')) {
+        alert('Error: This certificate has already been revoked');
+      } else if (error.message.includes('Token does not exist')) {
+        alert('Error: This certificate does not exist');
+      } else {
+        alert(`Failed to revoke certificate: ${error.message}`);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isLoading) return <div>Loading certificates...</div>;
+  if (error) return <div className="text-red-500">{error}</div>;
+
   return (
     <div>
       <h2 className="text-2xl font-bold text-blue-800 mb-4">Manage Certificates</h2>
-      {issuedCertificates.length > 0 ? (
-        <ul className="space-y-4">
-          {issuedCertificates.map((cert, index) => (
-            <li key={index} className="border p-4 rounded-lg shadow-md">
-              <h3 className="text-lg font-semibold">{cert.studentName}</h3>
-              <p><strong>Registration Number:</strong> {cert.registrationNumber}</p>
-              <p><strong>Course:</strong> {cert.course}</p>
-              <p><strong>CGPA:</strong> {cert.cgpa}</p>
-              <p><strong>Transaction Hash:</strong> {cert.transactionHash}</p>
-              <p><strong>IPFS URI:</strong> {cert.ipfsUri}</p>
-              <p><strong>Issued At:</strong> {new Date(cert.issuedAt).toLocaleString()}</p>
-            </li>
+      {certificates.length > 0 ? (
+        <div className="space-y-4">
+          {certificates.map((cert) => (
+            <div key={cert.id} className="border p-4 rounded-lg shadow-md">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-lg font-semibold">{cert.studentName}</h3>
+                  <p><strong>Registration Number:</strong> {cert.registrationNumber}</p>
+                  <p><strong>Course:</strong> {cert.course}</p>
+                  <p><strong>CGPA:</strong> {cert.cgpa}</p>
+                  <p><strong>Token ID:</strong> {cert.tokenId}</p>
+                  <p><strong>Transaction Hash:</strong> {cert.transactionHash}</p>
+                  <p><strong>IPFS URI:</strong> {cert.ipfsUri}</p>
+                  <p><strong>Issued At:</strong> {new Date(cert.issuedAt).toLocaleString()}</p>
+                  <p className={`font-semibold ${cert.isRevoked ? 'text-red-600' : 'text-green-600'}`}>
+                    Status: {cert.isRevoked ? 'Revoked' : 'Active'}
+                  </p>
+                  {cert.isRevoked && cert.revokedAt && (
+                    <p><strong>Revoked At:</strong> {new Date(cert.revokedAt).toLocaleString()}</p>
+                  )}
+                </div>
+                <div>
+                  {!cert.isRevoked && (
+                    <button
+                      onClick={() => handleRevoke(cert.id, cert.tokenId)}
+                      className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition-colors"
+                    >
+                      Revoke Certificate
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
           ))}
-        </ul>
+        </div>
       ) : (
         <p>No certificates issued yet.</p>
       )}

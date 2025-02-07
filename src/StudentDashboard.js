@@ -168,6 +168,23 @@ const StudentDashboard = () => {
     }
   }, []);
 
+  useEffect(() => {
+    // Initialize Moralis when component mounts
+    const initializeMoralis = async () => {
+      try {
+        if (!Moralis.Core.isStarted) {
+          await Moralis.start({
+            apiKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6Ijc5NWM3OWJhLWEyODgtNDZhYi1iNzdiLTJjMjE3MDdkYmEzNCIsIm9yZ0lkIjoiNDE0NzcwIiwidXNlcklkIjoiNDI2MjU1IiwidHlwZUlkIjoiYWRlZjliZmItM2M4Yy00YzA3LWJmM2YtYzE5YTUwN2JmMWM3IiwidHlwZSI6IlBST0pFQ1QiLCJpYXQiOjE3MzA2Mjc5NjAsImV4cCI6NDg4NjM4Nzk2MH0.VJ87rLcvA4IdbPV_f3sz_lbaT4hSRZ3uvQuAnNy-inc"
+          });
+        }
+      } catch (error) {
+        console.error('Error initializing Moralis:', error);
+      }
+    };
+
+    initializeMoralis();
+  }, []);
+
   const handleLogout = async () => {
     try {
       await disconnectWallet();
@@ -219,10 +236,6 @@ const StudentDashboard = () => {
   const fetchReceivedNFTs = async () => {
     setIsLoading(true);
     try {
-      await Moralis.start({
-        apiKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6Ijc5NWM3OWJhLWEyODgtNDZhYi1iNzdiLTJjMjE3MDdkYmEzNCIsIm9yZ0lkIjoiNDE0NzcwIiwidXNlcklkIjoiNDI2MjU1IiwidHlwZUlkIjoiYWRlZjliZmItM2M4Yy00YzA3LWJmM2YtYzE5YTUwN2JmMWM3IiwidHlwZSI6IlBST0pFQ1QiLCJpYXQiOjE3MzA2Mjc5NjAsImV4cCI6NDg4NjM4Nzk2MH0.VJ87rLcvA4IdbPV_f3sz_lbaT4hSRZ3uvQuAnNy-inc"
-      });
-
       const response = await Moralis.EvmApi.nft.getWalletNFTs({
         chain: "0xaa36a7",
         format: "decimal",
@@ -289,7 +302,7 @@ const StudentDashboard = () => {
 
     } catch (error) {
       console.error('Error fetching NFTs:', error);
-      alert('Failed to fetch NFTs');
+      alert('Failed to fetch NFTs: ' + error.message);
     } finally {
       setIsLoading(false);
     }
