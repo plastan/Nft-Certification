@@ -358,21 +358,18 @@ const StudentDashboard = () => {
   // Add this function to handle image download
   const handleImageDownload = async (imageUrl, studentName) => {
     try {
-      console.log('Downloading image from:', imageUrl); // Debug log
-
-      // If it's an IPFS URL, ensure we're using the gateway URL
-      const downloadUrl = imageUrl.startsWith('ipfs://')
-        ? `https://ipfs.io/ipfs/${imageUrl.replace('ipfs://', '')}`
-        : imageUrl;
+      const hash = imageUrl.replace('ipfs://', '').split('/').pop();
+      const downloadUrl = `https://dweb.link/ipfs/${hash}`;
 
       const response = await fetch(downloadUrl);
-      if (!response.ok) throw new Error('Failed to fetch image');
+      if (!response.ok) {
+        throw new Error('Failed to fetch image');
+      }
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      // Use a sanitized student name or timestamp for filename
       const fileName = studentName
         ? `certificate-${studentName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.png`
         : `certificate-${Date.now()}.png`;
@@ -381,9 +378,10 @@ const StudentDashboard = () => {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
+
     } catch (error) {
       console.error('Error downloading image:', error);
-      alert('Failed to download image: ' + error.message);
+      alert('Failed to download image. Please try again later.');
     }
   };
 
@@ -473,6 +471,26 @@ const StudentDashboard = () => {
                               src={getIPFSUrl(nft.metadata?.image || nft.original_media_url)}
                               alt={`Certificate for ${nft.metadata?.studentName || 'Student'}`}
                               className="w-full h-full object-contain"
+                              onError={(e) => {
+                                // If the image fails to load, try the next gateway
+                                const currentSrc = e.target.src;
+                                const currentGateway = currentSrc.split('/ipfs/')[0];
+                                const hash = currentSrc.split('/ipfs/')[1];
+                                const gateways = [
+                                  'https://cloudflare-ipfs.com/ipfs/',
+                                  'https://gateway.pinata.cloud/ipfs/',
+                                  'https://ipfs.io/ipfs/',
+                                  'https://dweb.link/ipfs/',
+                                  'https://gateway.ipfs.io/ipfs/'
+                                ];
+                                
+                                const currentIndex = gateways.findIndex(g => currentSrc.startsWith(g));
+                                if (currentIndex < gateways.length - 1) {
+                                  e.target.src = `${gateways[currentIndex + 1]}${hash}`;
+                                } else {
+                                  e.target.src = '/placeholder-image.png'; // Show a placeholder if all gateways fail
+                                }
+                              }}
                             />
                             {/* Clickable overlay with download icon */}
                             <div 

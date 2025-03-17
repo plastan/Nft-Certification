@@ -93,20 +93,26 @@ const InstitutionDashboard = () => {
   const fetchRequests = async () => {
     const db = getFirestore();
     
-    console.log('Fetching all requests');
+    console.log('Fetching pending requests');
 
     try {
+      // Create a query to only get requests with status 'pending'
       const requestsCollection = collection(db, 'certificateRequests');
-      const requestsSnapshot = await getDocs(requestsCollection);
+      const pendingRequestsQuery = query(
+        requestsCollection,
+        where('status', '==', 'pending')
+      );
       
-      console.log('Number of requests found:', requestsSnapshot.size);
+      const requestsSnapshot = await getDocs(pendingRequestsQuery);
+      
+      console.log('Number of pending requests found:', requestsSnapshot.size);
 
       const requestsList = requestsSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
 
-      console.log('Processed requests:', requestsList);
+      console.log('Processed pending requests:', requestsList);
 
       setRequests(requestsList);
     } catch (error) {
@@ -136,10 +142,25 @@ const InstitutionDashboard = () => {
     }
   };
 
-  const handleApprove = (request) => {
-    setSelectedRequest(request);
-    setActiveSection('issue-certificate');
-    setApprovedRequestId(request.id);
+  const handleApprove = async (request) => {
+    const db = getFirestore();
+    try {
+      // Update the request status to 'approved' in Firestore
+      await updateDoc(doc(db, 'certificateRequests', request.id), {
+        status: 'approved'
+      });
+      
+      // Update local state
+      setSelectedRequest(request);
+      setActiveSection('issue-certificate');
+      setApprovedRequestId(request.id);
+      
+      // Refresh the requests list
+      fetchRequests();
+    } catch (error) {
+      console.error('Error approving request:', error);
+      alert('Failed to approve request');
+    }
   };
 
   const handleIssueCertificate = (certificateDetails) => {
